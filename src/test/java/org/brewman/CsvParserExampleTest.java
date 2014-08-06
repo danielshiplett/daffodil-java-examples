@@ -4,7 +4,6 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.net.URI;
 import java.net.URL;
 import java.nio.charset.Charset;
 
@@ -35,9 +34,118 @@ public class CsvParserExampleTest {
 
 	@Test
 	public void test() throws Exception {
+		/**
+		 * Get the version of ICU4J.
+		 */
 		log.debug("icu version: {}", com.ibm.icu.util.VersionInfo.ICU_VERSION);
 
-		ErrorHandler error = new ErrorHandler() {
+		/**
+		 * Get a URL for the test schema resource. We'll use it later to get the
+		 * file or load the XML or whatever...
+		 */
+		URL schemaUrl = getClass().getResource("/" + TEST_SCHEMA);
+		log.debug("url: {}", schemaUrl);
+
+		/**
+		 * Get a Daffofil XML Loader. It loads the schema XML differently?
+		 */
+		DaffodilXMLLoader loader = new DaffodilXMLLoader(
+				getSimpleErrorHandler());
+		loader.setValidation(true);
+
+		/**
+		 * Use the loader to get an XML 'Node'.
+		 */
+		Node origNode = loader.load(schemaUrl.toURI());
+		log.debug("origNode: {}", origNode);
+
+		/**
+		 * Or open the File from the URL.
+		 */
+		File f = new File(schemaUrl.toURI());
+
+		/**
+		 * We needed the File to determine the encoding I guess?
+		 */
+		Codec codec = encodingToCodec(determineEncoding(f));
+		log.debug("codec: {}", codec);
+
+		/**
+		 * Otherwise, get the file as a Source. This is what needed the
+		 * encoding.
+		 */
+		BufferedSource input = scala.io.Source
+				.fromURI(schemaUrl.toURI(), codec);
+
+		/**
+		 * This also gets an XML 'Node'. Note that it appears to be way less
+		 * verbose than getting it the original way....
+		 */
+		Node someNode = ConstructingParser.fromSource(input, true).document()
+				.docElem();
+		log.debug("someNode: {}", someNode);
+
+		/**
+		 * Create a Daffodil Compiler. Make sure it validates?
+		 */
+		Compiler c = new Compiler(true);
+
+		/**
+		 * And then compile the schema. Why the original vs. the other XML? No
+		 * idea...
+		 * 
+		 * But we get a ProcessorFactory from it.
+		 */
+		ProcessorFactory pf = c.compile(origNode);
+		log.debug("schema valid: {}", c.validateDFDLSchemas());
+		log.debug("pf: {}", pf);
+
+		/**
+		 * See if there was an error yet?
+		 */
+		if (pf.isError()) {
+			throw new Exception("error1");
+		}
+
+		/**
+		 * Get a DataProcessor from the ProcessorFactory. I guess the parameter
+		 * tells it where to start processing from? Why XPath here?
+		 */
+		DataProcessor p = pf.onPath("/");
+
+		/**
+		 * Again, check if there is an error with the DataProcessor?
+		 */
+		if (p.isError()) {
+			throw new Exception("error2");
+		}
+
+		/**
+		 * Get a URL for the test data resource.
+		 */
+		URL dataUrl = getClass().getResource("/" + TEST_DATA);
+		log.debug("url: {}", dataUrl);
+
+		/**
+		 * Get a File for the test data.
+		 */
+		File data = new File(dataUrl.toURI());
+
+		/**
+		 * Now finally try to parse the sample data.
+		 */
+		ParseResult actual = p.parse(data);
+
+		/**
+		 * And see if there is an error again?
+		 */
+		if (actual.isError()) {
+			throw new Exception("error3");
+		}
+	}
+
+	private ErrorHandler getSimpleErrorHandler() {
+		return new ErrorHandler() {
 
 			@Override
 			public void warning(SAXParseException exception)
@@ -56,56 +164,6 @@ public class CsvParserExampleTest {
 				log.error(exception.getMessage(), exception);
 			}
 		};
-
-		DaffodilXMLLoader loader = new DaffodilXMLLoader(error);
-		loader.setValidation(true);
-
-		URL resourceUrl = getClass().getResource("/" + TEST_SCHEMA);
-		log.debug("url: {}", resourceUrl);
-		URI tsURI = resourceUrl.toURI();
-		File f = new File(tsURI);
-		String enc = determineEncoding(f);
-		log.debug("enc: {}", enc);
-		Codec codec = new Codec(Charset.forName(enc));
-		log.debug("codec: {}", codec);
-		BufferedSource input = scala.io.Source.fromURI(tsURI, codec);
-		Node origNode = loader.load(tsURI);
-
-		log.debug("origNode: {}", origNode);
-
-		Node someNode = ConstructingParser.fromSource(input, true).document()
-				.docElem();
-
-		log.debug("someNode: {}", someNode);
-
-		// val res = (someNode, null, new InputSource(tsURI.toASCIIString()));
-
-		Compiler c = new Compiler(true);
-		ProcessorFactory pf = c.compile(someNode);
-
-		log.debug("pf: {}", pf);
-
-		URL dataUrl = getClass().getResource("/" + TEST_DATA);
-		log.debug("url: {}", dataUrl);
-		URI dataUri = dataUrl.toURI();
-		File data = new File(dataUri);
-
-		boolean isError = pf.isError();
-		if (isError) {
-			throw new Exception("error1");
-		}
-
-		DataProcessor p = pf.onPath("/");
-		boolean pIsError = p.isError();
-		if (pIsError) {
-			throw new Exception("error2");
-		}
-
-		ParseResult actual = p.parse(data);
-
-		if (actual.isError()) {
-			throw new Exception("error3");
-		}
 	}
 
 	private String determineEncoding(File theFile) throws FileNotFoundException {
@@ -113,5 +171,9 @@ public class CsvParserExampleTest {
 		BufferedInputStream bis = new BufferedInputStream(is);
 		String enc = EncodingHeuristics.readEncodingFromStream(bis);
 		return enc;
+	}
+
+	private Codec encodingToCodec(String encoding) {
+		return new Codec(Charset.forName(encoding));
 	}
 }
