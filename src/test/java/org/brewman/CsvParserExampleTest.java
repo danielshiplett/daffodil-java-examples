@@ -19,17 +19,13 @@ import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
-import scala.io.BufferedSource;
 import scala.io.Codec;
-import scala.xml.Node;
 import scala.xml.include.sax.EncodingHeuristics;
-import scala.xml.parsing.ConstructingParser;
 import edu.illinois.ncsa.daffodil.japi.Compiler;
 import edu.illinois.ncsa.daffodil.japi.Daffodil;
 import edu.illinois.ncsa.daffodil.japi.DataProcessor;
 import edu.illinois.ncsa.daffodil.japi.ParseResult;
 import edu.illinois.ncsa.daffodil.japi.ProcessorFactory;
-import edu.illinois.ncsa.daffodil.xml.DaffodilXMLLoader;
 
 public class CsvParserExampleTest {
 	private static final Logger log = LoggerFactory
@@ -53,43 +49,9 @@ public class CsvParserExampleTest {
 		log.debug("url: {}", schemaUrl);
 
 		/**
-		 * Get a Daffofil XML Loader. It loads the schema XML differently?
-		 */
-		DaffodilXMLLoader loader = new DaffodilXMLLoader(
-				getSimpleErrorHandler());
-		loader.setValidation(true);
-
-		/**
-		 * Use the loader to get an XML 'Node'.
-		 */
-		Node origNode = loader.load(schemaUrl.toURI());
-		log.debug("origNode: {}", origNode);
-
-		/**
 		 * Or open the File from the URL.
 		 */
-		File f = new File(schemaUrl.toURI());
-
-		/**
-		 * We needed the File to determine the encoding I guess?
-		 */
-		Codec codec = encodingToCodec(determineEncoding(f));
-		log.debug("codec: {}", codec);
-
-		/**
-		 * Otherwise, get the file as a Source. This is what needed the
-		 * encoding.
-		 */
-		BufferedSource input = scala.io.Source
-				.fromURI(schemaUrl.toURI(), codec);
-
-		/**
-		 * This also gets an XML 'Node'. Note that it appears to be way less
-		 * verbose than getting it the original way....
-		 */
-		Node someNode = ConstructingParser.fromSource(input, true).document()
-				.docElem();
-		log.debug("someNode: {}", someNode);
+		File schemaFile = new File(schemaUrl.toURI());
 
 		/**
 		 * Create a Daffodil Compiler. Make sure it validates?
@@ -103,7 +65,7 @@ public class CsvParserExampleTest {
 		 * 
 		 * But we get a ProcessorFactory from it.
 		 */
-		File[] schemaFiles = new File[] { new File(schemaUrl.toURI()) };
+		File[] schemaFiles = new File[] { schemaFile };
 		ProcessorFactory pf = c.compile(schemaFiles);
 		log.debug("pf: {}", pf);
 
@@ -136,8 +98,8 @@ public class CsvParserExampleTest {
 		/**
 		 * Get a File for the test data.
 		 */
-		File data = new File(dataUrl.toURI());
-		FileInputStream fis = new FileInputStream(data);
+		File dataFile = new File(dataUrl.toURI());
+		FileInputStream fis = new FileInputStream(dataFile);
 		ReadableByteChannel rbc = Channels.newChannel(fis);
 
 		/**
