@@ -5,8 +5,13 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.net.URL;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.Charset;
 
+import org.jdom2.Document;
+import org.jdom2.output.Format;
+import org.jdom2.output.XMLOutputter;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,10 +24,11 @@ import scala.io.Codec;
 import scala.xml.Node;
 import scala.xml.include.sax.EncodingHeuristics;
 import scala.xml.parsing.ConstructingParser;
-import edu.illinois.ncsa.daffodil.api.DFDL.DataProcessor;
-import edu.illinois.ncsa.daffodil.api.DFDL.ParseResult;
-import edu.illinois.ncsa.daffodil.compiler.Compiler;
-import edu.illinois.ncsa.daffodil.compiler.ProcessorFactory;
+import edu.illinois.ncsa.daffodil.japi.Compiler;
+import edu.illinois.ncsa.daffodil.japi.Daffodil;
+import edu.illinois.ncsa.daffodil.japi.DataProcessor;
+import edu.illinois.ncsa.daffodil.japi.ParseResult;
+import edu.illinois.ncsa.daffodil.japi.ProcessorFactory;
 import edu.illinois.ncsa.daffodil.xml.DaffodilXMLLoader;
 
 public class CsvParserExampleTest {
@@ -88,7 +94,8 @@ public class CsvParserExampleTest {
 		/**
 		 * Create a Daffodil Compiler. Make sure it validates?
 		 */
-		Compiler c = new Compiler(true);
+		Compiler c = Daffodil.compiler();
+		c.setValidateDFDLSchemas(true);
 
 		/**
 		 * And then compile the schema. Why the original vs. the other XML? No
@@ -96,8 +103,8 @@ public class CsvParserExampleTest {
 		 * 
 		 * But we get a ProcessorFactory from it.
 		 */
-		ProcessorFactory pf = c.compile(origNode);
-		log.debug("schema valid: {}", c.validateDFDLSchemas());
+		File[] schemaFiles = new File[] { new File(schemaUrl.toURI()) };
+		ProcessorFactory pf = c.compile(schemaFiles);
 		log.debug("pf: {}", pf);
 
 		/**
@@ -130,11 +137,13 @@ public class CsvParserExampleTest {
 		 * Get a File for the test data.
 		 */
 		File data = new File(dataUrl.toURI());
+		FileInputStream fis = new FileInputStream(data);
+		ReadableByteChannel rbc = Channels.newChannel(fis);
 
 		/**
 		 * Now finally try to parse the sample data.
 		 */
-		ParseResult actual = p.parse(data);
+		ParseResult actual = p.parse(rbc);
 
 		/**
 		 * And see if there is an error again?
@@ -142,6 +151,11 @@ public class CsvParserExampleTest {
 		if (actual.isError()) {
 			throw new Exception("error3");
 		}
+
+		Document doc = actual.result();
+		XMLOutputter xo = new XMLOutputter();
+		xo.setFormat(Format.getPrettyFormat());
+		xo.output(doc, System.out);
 	}
 
 	private ErrorHandler getSimpleErrorHandler() {
